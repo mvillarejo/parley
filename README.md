@@ -230,7 +230,7 @@ The MCP integration tests (`src-tauri/tests/mcp_integration.rs`) start the real 
 
 ## Credits
 
-Parley is derived from [TTM](https://github.com/mvillarejo/ttm), itself a fork of [GladiaFlow](https://github.com/gladiaio/gladiaflow) by Gladia (MIT). The microphone capture, the transcription profiles and the OpenAI-compatible client come from there. The original copyright notice is kept in [LICENSE](LICENSE); see also [NOTICE](NOTICE).
+Parley is derived from TTM (now [Hablo](https://github.com/mvillarejo/hablo)), itself a fork of [GladiaFlow](https://github.com/gladiaio/gladiaflow) by Gladia (MIT). The microphone capture, the transcription profiles and the OpenAI-compatible client come from there. The original copyright notice is kept in [LICENSE](LICENSE); see also [NOTICE](NOTICE).
 
 Parley is not an official Gladia product and is not affiliated with or endorsed by Gladia. See [TRADEMARKS.md](TRADEMARKS.md).
 
