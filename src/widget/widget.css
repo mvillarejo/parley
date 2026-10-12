@@ -1,0 +1,314 @@
+/* The window is opaque and square-cornered (macOS frameless window). */
+html,
+body.widget-body {
+  height: 100%;
+  background: var(--bg-secondary);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.widget {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: 100vh;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border-top: 2px solid var(--border-card);
+  cursor: default;
+}
+
+.widget--live {
+  border-top-color: var(--status-recording);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--status-recording) 10%, transparent),
+      transparent 60%
+    ),
+    var(--bg-secondary);
+}
+
+.widget--paused {
+  border-top-color: var(--status-warning);
+  background: var(--bg-secondary);
+}
+
+.widget-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.widget-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-book);
+  letter-spacing: var(--letter-spacing-wider);
+}
+
+.widget-rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: var(--font-size-12);
+}
+
+.widget-rec-label {
+  font-size: var(--font-size-10);
+  font-weight: var(--font-weight-book);
+  letter-spacing: var(--letter-spacing-wider);
+  color: var(--color-red-500);
+}
+
+.widget--paused .widget-rec-label {
+  color: var(--status-warning);
+}
+
+.widget-title {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-12);
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.widget-title::placeholder {
+  color: var(--text-tertiary);
+}
+
+.widget-title:hover,
+.widget-title:focus {
+  background: var(--bg-tertiary);
+}
+
+.widget-title:focus {
+  box-shadow: 0 0 0 1px var(--border-focus);
+}
+
+.widget-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.widget-icon:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.widget-meters {
+  display: grid;
+  gap: 5px;
+}
+
+.widget-hint {
+  font-size: var(--font-size-12);
+  color: var(--text-tertiary);
+}
+
+.widget-row--bottom {
+  gap: 4px;
+}
+
+.widget-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-10);
+  color: var(--text-tertiary);
+}
+
+.widget-status--warn {
+  color: var(--color-amber-300);
+}
+
+.widget-link {
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-brand);
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.widget-record,
+.widget-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 5px 12px;
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-12);
+  cursor: pointer;
+}
+
+.widget-record {
+  background: var(--status-recording);
+  color: var(--color-neutral-0);
+}
+
+.widget-stop {
+  background: var(--bg-inverse);
+  color: var(--text-inverse);
+}
+
+.widget-record:disabled,
+.widget-stop:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.widget button:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* --- Highlights & notes ------------------------------------------------ */
+
+.widget-live {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.widget-live .widget-meters {
+  flex: 1;
+  min-width: 0;
+}
+
+.widget-marks {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.widget-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 30px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border-transparent);
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-12);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background var(--duration-160) var(--ease-out),
+    color var(--duration-160) var(--ease-out),
+    border-color var(--duration-160) var(--ease-out);
+}
+
+.widget-mark:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.widget-mark--highlight svg {
+  color: var(--marker-highlight);
+}
+
+.widget-mark--note svg {
+  color: var(--marker-note);
+}
+
+.widget-mark--highlight:hover,
+.widget-mark--highlight:active {
+  border-color: color-mix(in srgb, var(--marker-highlight) 40%, transparent);
+}
+
+.widget-mark--note:hover,
+.widget-mark--note.is-active {
+  border-color: color-mix(in srgb, var(--marker-note) 40%, transparent);
+}
+
+.widget-mark--note.is-active {
+  background: color-mix(in srgb, var(--marker-note) 14%, var(--bg-tertiary));
+}
+
+.widget-mark-count {
+  color: var(--text-primary);
+  font-size: var(--font-size-10);
+  font-weight: var(--font-weight-book);
+}
+
+.widget-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 3px 4px 3px 8px;
+  border-radius: var(--radius-1);
+  background: var(--bg-tertiary);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--marker-note) 45%, transparent);
+}
+
+.widget-note-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--marker-note);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-10);
+}
+
+.widget-note-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-12);
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.widget-note-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.widget-status--ok {
+  color: var(--text-primary);
+}
+
+.widget-status--ok svg {
+  margin-right: 4px;
+  vertical-align: -1px;
+  color: var(--status-success);
+}

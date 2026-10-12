@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1f24"/>
+      <stop offset="1" stop-color="#0b0d10"/>
+    </linearGradient>
+  </defs>
+  <rect x="80" y="80" width="864" height="864" rx="196" fill="url(#bg)"/>
+  <rect x="81.5" y="81.5" width="861" height="861" rx="194.5" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="3"/>
+  <!-- Them: amber bubble, behind, tail to the right -->
+  <path d="M452 270h236c70 0 126 56 126 126v118c0 70-56 126-126 126h-6v92l-104-92H452c-70 0-126-56-126-126V396c0-70 56-126 126-126z" fill="#F5B544"/>
+  <!-- Me: teal bubble, in front, tail to the left -->
+  <path d="M336 414h236c70 0 126 56 126 126v118c0 70-56 126-126 126H448l-104 92v-92h-8c-70 0-126-56-126-126V540c0-70 56-126 126-126z" fill="#2DD4BF" stroke="#0f1215" stroke-width="30" stroke-linejoin="round"/>
+  <!-- waveform inside Me -->
+  <g fill="#0f1215">
+    <rect x="322" y="560" width="36" height="76" rx="18"/>
+    <rect x="390" y="520" width="36" height="156" rx="18"/>
+    <rect x="458" y="545" width="36" height="106" rx="18"/>
+    <rect x="526" y="575" width="36" height="46" rx="18"/>
+  </g>
+</svg>

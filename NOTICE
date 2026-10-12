@@ -1,0 +1,14 @@
+Parley
+Copyright (c) 2026 Manuel Villarejo
+
+Parley is derived from TTM (https://github.com/mvillarejo/ttm), itself a fork
+of GladiaFlow by Gladia (https://github.com/gladiaio/gladiaflow), released
+under the MIT License. The original copyright notice is kept in LICENSE.
+
+Parley is not an official Gladia product and is not affiliated with or endorsed
+by Gladia. "Gladia" and "GladiaFlow" are trademarks of Gladia; the Gladia name
+appears only to describe the Gladia transcription API that Parley can use. See
+TRADEMARKS.md.
+
+Bundled fonts: Inter (SIL Open Font License 1.1, public/fonts/Inter-LICENSE.txt)
+and Geist Mono (SIL Open Font License 1.1, public/fonts/GeistMono-LICENSE.txt).

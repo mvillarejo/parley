@@ -1,0 +1,44 @@
+{
+  "name": "parley",
+  "version": "0.1.0",
+  "description": "macOS meeting recorder: records your mic and the call audio, transcribes both, and serves transcripts to Claude over MCP",
+  "author": "Manuel Villarejo",
+  "private": true,
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml --check",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "tauri:build": "tauri build",
+    "test": "cargo test --manifest-path src-tauri/Cargo.toml && vitest run && npm run typecheck",
+    "typecheck": "tsc --noEmit",
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "build:mcp": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin parley-mcp",
+    "icons": "node scripts/render-icons.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-log": "^2.8.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "esbuild": "^0.28.1",
+    "playwright": "^1.61.1",
+    "prettier": "^3.9.9",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.11"
+  }
+}

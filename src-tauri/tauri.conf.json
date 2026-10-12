@@ -1,0 +1,73 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "Parley",
+  "mainBinaryName": "parley",
+  "version": "0.1.0",
+  "identifier": "in.villarejo.parley",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build && npm run build:mcp",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Parley",
+        "url": "index.html",
+        "width": 1120,
+        "height": 740,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "visible": true
+      },
+      {
+        "label": "widget",
+        "title": "Parley recorder",
+        "url": "widget.html",
+        "width": 340,
+        "height": 132,
+        "resizable": false,
+        "decorations": false,
+        "transparent": false,
+        "alwaysOnTop": true,
+        "visibleOnAllWorkspaces": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "acceptFirstMouse": true,
+        "shadow": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$CONFIG/parley/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "category": "Productivity",
+    "copyright": "Copyright (c) 2026 Manuel Villarejo. Portions copyright (c) 2026 Gladia.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "14.2",
+      "signingIdentity": "-",
+      "entitlements": "./Entitlements.plist",
+      "files": {
+        "MacOS/parley-mcp": "./target/release/parley-mcp"
+      }
+    }
+  }
+}
