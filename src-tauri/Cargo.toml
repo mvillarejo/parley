@@ -1,6 +1,6 @@
 [package]
 name = "parley"
-version = "0.1.0"
+version = "0.2.0"
 description = "macOS meeting recorder: records your mic and the call audio, transcribes both, and serves transcripts to Claude over MCP"
 authors = ["Manuel Villarejo"]
 license = "MIT"

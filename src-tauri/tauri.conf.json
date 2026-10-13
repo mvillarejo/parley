@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "Parley",
   "mainBinaryName": "parley",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "in.villarejo.parley",
   "build": {
     "beforeDevCommand": "npm run dev",
