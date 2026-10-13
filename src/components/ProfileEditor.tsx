@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import {
+  DEFAULT_WHISPER_MODEL_PATH_HINT,
   PROFILE_KIND_LABELS,
   type NewProfile,
   type ProfileDraftErrors,
@@ -83,7 +84,9 @@ export function ProfileEditor({
             {PROFILE_KIND_LABELS[draft.kind]}
             {draft.kind === "gladia"
               ? " · cloud, separates the other speakers"
-              : " · local Ollama, Groq or OpenAI"}
+              : draft.kind === "whisper_local"
+                ? " · whisper.cpp on this Mac"
+                : " · local Ollama, Groq or OpenAI"}
           </p>
         </div>
         <button
@@ -104,20 +107,22 @@ export function ProfileEditor({
             role="radiogroup"
             aria-label="Profile type"
           >
-            {(["openai_compat", "gladia"] as const).map((kind) => (
-              <button
-                key={kind}
-                type="button"
-                role="radio"
-                aria-checked={draft.kind === kind}
-                className={`btn btn-sm ${
-                  draft.kind === kind ? "btn-primary" : "btn-ghost"
-                }`}
-                onClick={() => onKindChange(kind)}
-              >
-                {PROFILE_KIND_LABELS[kind]}
-              </button>
-            ))}
+            {(["whisper_local", "openai_compat", "gladia"] as const).map(
+              (kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  role="radio"
+                  aria-checked={draft.kind === kind}
+                  className={`btn btn-sm ${
+                    draft.kind === kind ? "btn-primary" : "btn-ghost"
+                  }`}
+                  onClick={() => onKindChange(kind)}
+                >
+                  {PROFILE_KIND_LABELS[kind]}
+                </button>
+              ),
+            )}
           </div>
         )}
         <div className="form-group">
@@ -131,7 +136,11 @@ export function ProfileEditor({
             className={`form-input${errors.name ? " form-input--error" : ""}`}
             value={draft.name}
             placeholder={
-              draft.kind === "gladia" ? "e.g. Gladia work" : "e.g. Groq"
+              draft.kind === "gladia"
+                ? "e.g. Gladia work"
+                : draft.kind === "whisper_local"
+                  ? "e.g. Whisper turbo"
+                  : "e.g. Groq"
             }
             onChange={(e) => update({ name: e.target.value })}
             {...inputProps}
@@ -141,7 +150,33 @@ export function ProfileEditor({
           )}
         </div>
 
-        {draft.kind === "gladia" ? (
+        {draft.kind === "whisper_local" ? (
+          <div className="form-group">
+            <label className="form-label" htmlFor="profile-model-path">
+              Model file
+            </label>
+            <input
+              id="profile-model-path"
+              type="text"
+              className={`form-input${errors.model_path ? " form-input--error" : ""}`}
+              value={draft.model_path}
+              placeholder={DEFAULT_WHISPER_MODEL_PATH_HINT}
+              onChange={(e) => update({ model_path: e.target.value })}
+              {...inputProps}
+            />
+            {errors.model_path ? (
+              <p className="form-footnote form-footnote--danger">
+                {errors.model_path}
+              </p>
+            ) : (
+              <p className="form-footnote text-secondary">
+                whisper.cpp model file. Install with{" "}
+                <code>brew install whisper-cpp</code>; models:
+                huggingface.co/ggerganov/whisper.cpp
+              </p>
+            )}
+          </div>
+        ) : draft.kind === "gladia" ? (
           <>
             <div className="form-group">
               <label className="form-label" htmlFor="profile-gladia-key">

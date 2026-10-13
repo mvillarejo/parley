@@ -29,6 +29,7 @@ mod system_audio;
 mod test_http;
 mod transcribe;
 mod vocabulary;
+mod whisper_local;
 mod widget_window;
 
 use audio::{AudioCapture, AudioDeviceInfo};
@@ -780,6 +781,7 @@ async fn test_profile_connection(profile_id: String) -> Result<String, String> {
                 .expect("OpenAI-compatible profiles have batch settings");
             batch_stt::test_connection(&settings).await
         }
+        ProfileSettings::WhisperLocal { model_path } => whisper_local::test_setup(model_path).await,
     }
 }
 

@@ -15,13 +15,20 @@ import {
 const gladia = (id: string, name: string, apiKey: string): Profile => ({
   id,
   name,
-  ...defaultProfileSettings("gladia"),
+  kind: "gladia",
   api_key: apiKey,
+  code_switching: false,
 });
 const local = (id: string, name: string): Profile => ({
   id,
   name,
   ...defaultProfileSettings("openai_compat"),
+});
+const whisper = (id: string, name: string, modelPath = ""): Profile => ({
+  id,
+  name,
+  kind: "whisper_local",
+  model_path: modelPath,
 });
 const state = (active: string, ...profiles: Profile[]): ProfilesState => ({
   profiles,
@@ -34,6 +41,7 @@ describe("canTranscribe", () => {
     expect(canTranscribe(gladia("g", "G", "   "))).toBe(false);
     expect(canTranscribe(gladia("g", "G", "key"))).toBe(true);
     expect(canTranscribe(local("l", "L"))).toBe(true);
+    expect(canTranscribe(whisper("w", "W"))).toBe(true);
     expect(canTranscribe(null)).toBe(false);
   });
 
@@ -126,4 +134,50 @@ describe("validateSttBaseUrl", () => {
       expect(validateSttBaseUrl(url)).not.toBeNull();
     },
   );
+});
+
+describe("defaultProfileSettings", () => {
+  it("starts a Local Whisper profile with an empty model path", () => {
+    expect(defaultProfileSettings("whisper_local")).toEqual({
+      kind: "whisper_local",
+      model_path: "",
+    });
+  });
+});
+
+describe("validateProfileDraft for Local Whisper", () => {
+  const modelPath =
+    "/Users/me/Library/Application Support/whisper.cpp/models/ggml-large-v3-turbo.bin";
+  const draft = (path: string): NewProfile => ({
+    name: "Local Whisper",
+    kind: "whisper_local",
+    model_path: path,
+  });
+
+  it("accepts an absolute model path", () => {
+    expect(validateProfileDraft(draft(modelPath), [], null)).toEqual({});
+    expect(validateProfileDraft(draft(` ${modelPath} `), [], null)).toEqual({});
+  });
+
+  it.each(["", "   "])("requires the model file (%j)", (path) => {
+    expect(validateProfileDraft(draft(path), [], null).model_path).toBe(
+      "Model file is required",
+    );
+  });
+
+  it.each([
+    "ggml-large-v3-turbo.bin",
+    "~/Library/Application Support/whisper.cpp/models/ggml-large-v3-turbo.bin",
+    "./models/ggml-base.bin",
+  ])("rejects the relative path %j", (path) => {
+    expect(validateProfileDraft(draft(path), [], null).model_path).toBe(
+      "Use the full path to the model file",
+    );
+  });
+
+  it("does not check URL or model fields", () => {
+    const errors = validateProfileDraft(draft(""), [], null);
+    expect(errors.base_url).toBeUndefined();
+    expect(errors.model).toBeUndefined();
+  });
 });

@@ -210,6 +210,13 @@ const PROFILES: ProfilesState = {
       api_key: "",
     },
     {
+      id: "local-whisper",
+      name: "Local Whisper",
+      kind: "whisper_local",
+      model_path:
+        "/Users/me/Library/Application Support/whisper.cpp/models/ggml-large-v3-turbo.bin",
+    },
+    {
       id: "gladia",
       name: "Gladia",
       kind: "gladia",

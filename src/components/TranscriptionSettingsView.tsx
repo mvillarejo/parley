@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import {
   DEFAULT_GLADIA_PROFILE_NAME,
   DEFAULT_LOCAL_PROFILE_NAME,
+  DEFAULT_WHISPER_PROFILE_NAME,
   defaultProfileSettings,
   PROFILE_KIND_LABELS,
   uniqueProfileName,
@@ -110,7 +111,9 @@ export function TranscriptionSettingsView({
     uniqueProfileName(
       kind === "gladia"
         ? DEFAULT_GLADIA_PROFILE_NAME
-        : DEFAULT_LOCAL_PROFILE_NAME,
+        : kind === "whisper_local"
+          ? DEFAULT_WHISPER_PROFILE_NAME
+          : DEFAULT_LOCAL_PROFILE_NAME,
       profiles,
     );
 
@@ -441,7 +444,7 @@ export function TranscriptionSettingsView({
         <button
           type="button"
           className="btn btn-ghost"
-          onClick={() => startCreate("openai_compat")}
+          onClick={() => startCreate("whisper_local")}
         >
           Add profile
         </button>

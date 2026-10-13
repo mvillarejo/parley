@@ -1,5 +1,5 @@
 //! Test-only HTTP mock: answers each incoming connection with the next canned
-//! reply and records the raw requests.
+//! reply and records the raw requests. Status 0 never replies.
 
 pub async fn mock_server(
     replies: Vec<(u16, &'static str)>,
@@ -33,6 +33,14 @@ pub async fn mock_server(
                 }
             }
             seen_task.lock().unwrap().push(buf);
+            if status == 0 {
+                // Never answer: hold the connection open like a hung server.
+                tokio::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    drop(sock);
+                });
+                continue;
+            }
             let reply = format!(
                 "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\nretry-after: 0\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
                 body.len()

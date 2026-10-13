@@ -336,8 +336,8 @@ const MAX_PROFILE_NAME_CHARS: usize = 60;
 pub const DEFAULT_LOCAL_PROFILE_ID: &str = "local-ollama";
 pub const DEFAULT_LOCAL_PROFILE_NAME: &str = "Local Ollama";
 
-/// Kind-specific part of a profile, tagged with `kind` = `"gladia"` or
-/// `"openai_compat"`. Fields are typed and required, so explicit nulls and
+/// Kind-specific part of a profile, tagged with `kind` = `"gladia"`,
+/// `"openai_compat"` or `"whisper_local"`. Fields are typed and required, so explicit nulls and
 /// wrong types are rejected at the IPC boundary.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind")]
@@ -357,6 +357,12 @@ pub enum ProfileSettings {
         #[serde(default)]
         api_key: String,
     },
+    /// whisper.cpp on this Mac: Parley runs `whisper-server` for each job.
+    #[serde(rename = "whisper_local")]
+    WhisperLocal {
+        /// Absolute path to a ggml model file, e.g. ggml-large-v3-turbo.bin.
+        model_path: String,
+    },
 }
 
 impl ProfileSettings {
@@ -364,6 +370,7 @@ impl ProfileSettings {
         match self {
             ProfileSettings::Gladia { .. } => "gladia",
             ProfileSettings::OpenAiCompat { .. } => "openai_compat",
+            ProfileSettings::WhisperLocal { .. } => "whisper_local",
         }
     }
 
@@ -377,8 +384,10 @@ impl ProfileSettings {
                 base_url: base_url.clone(),
                 model: model.clone(),
                 api_key: Some(api_key.clone()).filter(|key| !key.trim().is_empty()),
+                chunking: crate::batch_stt::Chunking::Utterances,
             }),
-            ProfileSettings::Gladia { .. } => None,
+            // Its server only exists while a job runs; see `whisper_local`.
+            ProfileSettings::Gladia { .. } | ProfileSettings::WhisperLocal { .. } => None,
         }
     }
 
@@ -412,6 +421,16 @@ impl ProfileSettings {
                     model,
                     api_key: api_key.trim().to_string(),
                 })
+            }
+            ProfileSettings::WhisperLocal { model_path } => {
+                let model_path = model_path.trim().to_string();
+                if model_path.is_empty() {
+                    return Err("Model file is required".to_string());
+                }
+                if !Path::new(&model_path).is_absolute() {
+                    return Err("Use the full path to the model file".to_string());
+                }
+                Ok(ProfileSettings::WhisperLocal { model_path })
             }
         }
     }

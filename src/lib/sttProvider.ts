@@ -1,9 +1,13 @@
-export type SttProvider = "gladia" | "openai_compat";
+export type SttProvider = "gladia" | "openai_compat" | "whisper_local";
 
 export const DEFAULT_STT_BASE_URL = "http://localhost:11434/v1";
 export const DEFAULT_STT_MODEL = "gemma4:e4b";
 export const DEFAULT_LOCAL_PROFILE_NAME = "Local Ollama";
 export const DEFAULT_GLADIA_PROFILE_NAME = "Gladia";
+export const DEFAULT_WHISPER_PROFILE_NAME = "Local Whisper";
+/** Shown as a hint only: the form cannot expand `~`, the user pastes the full path. */
+export const DEFAULT_WHISPER_MODEL_PATH_HINT =
+  "~/Library/Application Support/whisper.cpp/models/ggml-large-v3-turbo.bin";
 const MAX_PROFILE_NAME_CHARS = 60;
 
 export interface GladiaProfileSettings {
@@ -19,8 +23,16 @@ export interface OpenAiCompatProfileSettings {
   api_key: string;
 }
 
+/** whisper.cpp run locally; the backend finds the `whisper-server` binary. */
+export interface WhisperLocalProfileSettings {
+  kind: "whisper_local";
+  model_path: string;
+}
+
 export type ProfileSettings =
-  GladiaProfileSettings | OpenAiCompatProfileSettings;
+  | GladiaProfileSettings
+  | OpenAiCompatProfileSettings
+  | WhisperLocalProfileSettings;
 
 /** Shape exchanged with the profile commands (snake_case, as on disk). */
 export type Profile = { id: string; name: string } & ProfileSettings;
@@ -39,6 +51,7 @@ export const EMPTY_PROFILES_STATE: ProfilesState = {
 export const PROFILE_KIND_LABELS: Record<SttProvider, string> = {
   gladia: "Gladia",
   openai_compat: "OpenAI-compatible",
+  whisper_local: "Local Whisper",
 };
 
 export function getActiveProfile(state: ProfilesState): Profile | null {
@@ -49,14 +62,19 @@ export function getActiveProfile(state: ProfilesState): Profile | null {
 }
 
 export function defaultProfileSettings(kind: SttProvider): ProfileSettings {
-  return kind === "gladia"
-    ? { kind, api_key: "", code_switching: false }
-    : {
+  switch (kind) {
+    case "gladia":
+      return { kind, api_key: "", code_switching: false };
+    case "whisper_local":
+      return { kind, model_path: "" };
+    case "openai_compat":
+      return {
         kind,
         base_url: DEFAULT_STT_BASE_URL,
         model: DEFAULT_STT_MODEL,
         api_key: "",
       };
+  }
 }
 
 /** `base`, or `base 2`, `base 3`… — the first name no profile uses yet. */
@@ -68,10 +86,10 @@ export function uniqueProfileName(base: string, profiles: Profile[]): string {
   }
 }
 
-/** A Gladia profile needs a saved API key; an OpenAI-compatible one does not. */
+/** A Gladia profile needs a saved API key; the other kinds do not. */
 export function canTranscribe(profile: Profile | null): boolean {
   if (!profile) return false;
-  return profile.kind === "openai_compat" || profile.api_key.trim().length > 0;
+  return profile.kind !== "gladia" || profile.api_key.trim().length > 0;
 }
 
 /** Returns an error message, or null when the base URL is usable. */
@@ -94,6 +112,7 @@ export interface ProfileDraftErrors {
   name?: string;
   base_url?: string;
   model?: string;
+  model_path?: string;
 }
 
 /** Mirrors the backend rules so the form can explain them before saving. */
@@ -121,6 +140,14 @@ export function validateProfileDraft(
     const urlError = validateSttBaseUrl(draft.base_url);
     if (urlError) errors.base_url = urlError;
     if (!draft.model.trim()) errors.model = "Model is required";
+  }
+  if (draft.kind === "whisper_local") {
+    const modelPath = draft.model_path.trim();
+    if (!modelPath) {
+      errors.model_path = "Model file is required";
+    } else if (!modelPath.startsWith("/")) {
+      errors.model_path = "Use the full path to the model file";
+    }
   }
   return errors;
 }

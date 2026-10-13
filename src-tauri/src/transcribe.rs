@@ -6,10 +6,12 @@ use crate::batch_stt::{self, RequestOptions};
 use crate::config::{Profile, ProfileSettings};
 use crate::gladia::{GladiaClient, GladiaOptions};
 use crate::library;
+use crate::whisper_local::WhisperServer;
 use crate::vocabulary::CustomVocabEntry;
 use parley_lib::merge::{self, TrackSegment};
 use parley_lib::store::{self, MeetingStatus};
 use parley_lib::wav;
+use std::io::{BufRead, Write};
 use std::path::Path;
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq)]
@@ -29,6 +31,138 @@ pub struct Job<'a> {
     pub vocabulary: Vec<CustomVocabEntry>,
 }
 
+/// Utterances finished by an interrupted run, so a retry resumes instead of
+/// starting over. One JSON object per line: a header naming the settings that
+/// produced them, then `{"track","start","end","text"}` per utterance. Removed
+/// once the transcript is saved.
+pub const CHECKPOINT_FILE: &str = "transcription.partial.jsonl";
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CheckpointHeader {
+    settings: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CheckpointEntry {
+    track: String,
+    start: usize,
+    end: usize,
+    segments: Vec<CheckpointSegment>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct CheckpointSegment {
+    start_ms: i64,
+    end_ms: i64,
+    text: String,
+}
+
+struct Checkpoint {
+    file: Option<std::fs::File>,
+}
+
+impl Checkpoint {
+    /// Open the checkpoint for `settings`, returning what it already holds per
+    /// track. A checkpoint written with other settings is discarded.
+    fn open(folder: &Path, settings: &str) -> (Self, batch_stt::Resume, batch_stt::Resume) {
+        let path = folder.join(CHECKPOINT_FILE);
+        let (mut me, mut them) = (batch_stt::Resume::new(), batch_stt::Resume::new());
+        let mut matches = false;
+        if let Ok(file) = std::fs::File::open(&path) {
+            let mut lines = std::io::BufReader::new(file).lines().map_while(Result::ok);
+            matches = lines
+                .next()
+                .and_then(|l| serde_json::from_str::<CheckpointHeader>(&l).ok())
+                .is_some_and(|h| h.settings == settings);
+            if matches {
+                // A torn last line from a crash is skipped.
+                for entry in lines.filter_map(|l| serde_json::from_str::<CheckpointEntry>(&l).ok()) {
+                    let target = if entry.track == "me" { &mut me } else { &mut them };
+                    let segments = entry
+                        .segments
+                        .into_iter()
+                        .map(|s| TrackSegment {
+                            start_ms: s.start_ms,
+                            end_ms: s.end_ms,
+                            text: s.text,
+                            speaker: None,
+                        })
+                        .collect();
+                    target.insert((entry.start, entry.end), segments);
+                }
+            }
+        }
+        let file = if matches {
+            std::fs::OpenOptions::new().append(true).open(&path).ok()
+        } else {
+            std::fs::File::create(&path).ok().and_then(|mut f| {
+                let header = serde_json::to_string(&CheckpointHeader {
+                    settings: settings.to_string(),
+                })
+                .ok()?;
+                writeln!(f, "{header}").ok()?;
+                Some(f)
+            })
+        };
+        if file.is_none() {
+            log::warn!("[transcribe] can't write {}; progress won't be resumable", path.display());
+        }
+        (Self { file }, me, them)
+    }
+
+    fn record(&mut self, track: &str, start: usize, end: usize, segments: &[TrackSegment]) {
+        let Some(file) = self.file.as_mut() else {
+            return;
+        };
+        let entry = CheckpointEntry {
+            track: track.to_string(),
+            start,
+            end,
+            segments: segments
+                .iter()
+                .map(|s| CheckpointSegment {
+                    start_ms: s.start_ms,
+                    end_ms: s.end_ms,
+                    text: s.text.clone(),
+                })
+                .collect(),
+        };
+        if let Ok(line) = serde_json::to_string(&entry) {
+            let _ = writeln!(file, "{line}");
+        }
+    }
+
+}
+
+/// Keeps the Mac from idle-sleeping while a long meeting transcribes.
+struct KeepAwake(Option<std::process::Child>);
+
+impl KeepAwake {
+    fn start() -> Self {
+        #[cfg(target_os = "macos")]
+        {
+            let pid = std::process::id().to_string();
+            match std::process::Command::new("/usr/bin/caffeinate")
+                .args(["-i", "-w", &pid])
+                .spawn()
+            {
+                Ok(child) => return Self(Some(child)),
+                Err(e) => log::warn!("[transcribe] can't start caffeinate: {e}"),
+            }
+        }
+        Self(None)
+    }
+}
+
+impl Drop for KeepAwake {
+    fn drop(&mut self) {
+        if let Some(child) = self.0.as_mut() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
 fn read_track(path: Option<std::path::PathBuf>) -> Result<(Vec<i16>, u32), String> {
     match path {
         Some(p) => wav::read_wav(&p)
@@ -40,6 +174,7 @@ fn read_track(path: Option<std::path::PathBuf>) -> Result<(Vec<i16>, u32), Strin
 
 async fn transcribe_tracks(
     job: &Job<'_>,
+    folder: &Path,
     mic: &(Vec<i16>, u32),
     system: &(Vec<i16>, u32),
     progress: &(dyn Fn(Progress) + Send + Sync),
@@ -61,27 +196,16 @@ async fn transcribe_tracks(
                 .settings
                 .batch_settings()
                 .expect("OpenAI-compatible profiles have batch settings");
-            let options = RequestOptions::from_session(&job.languages, job.vocabulary.clone());
-            let client = batch_stt::http_client();
-            let me = batch_stt::transcribe_track(
-                &client,
-                &settings,
-                &options,
-                &mic.0,
-                mic.1,
-                report("me"),
-            )
-            .await?;
-            let them = batch_stt::transcribe_track(
-                &client,
-                &settings,
-                &options,
-                &system.0,
-                system.1,
-                report("them"),
-            )
-            .await?;
-            Ok((me, them))
+            transcribe_batch(job, folder, &settings, mic, system, &report).await
+        }
+        ProfileSettings::WhisperLocal { model_path } => {
+            let language = match job.languages.as_slice() {
+                [only] => Some(only.as_str()),
+                _ => None,
+            };
+            // Stopped when this arm returns.
+            let server = WhisperServer::start(model_path, language).await?;
+            transcribe_batch(job, folder, &server.settings, mic, system, &report).await
         }
         ProfileSettings::Gladia {
             api_key,
@@ -107,6 +231,60 @@ async fn transcribe_tracks(
             Ok((me, them))
         }
     }
+}
+
+/// Both tracks through an OpenAI-compatible server, checkpointing each chunk
+/// so an interrupted job resumes where it stopped.
+async fn transcribe_batch<R, F>(
+    job: &Job<'_>,
+    folder: &Path,
+    settings: &batch_stt::BatchSettings,
+    mic: &(Vec<i16>, u32),
+    system: &(Vec<i16>, u32),
+    report: &R,
+) -> Result<(Vec<TrackSegment>, Vec<TrackSegment>), String>
+where
+    R: Fn(&'static str) -> F,
+    F: FnMut(usize, usize),
+{
+    let options = RequestOptions::from_session(&job.languages, job.vocabulary.clone());
+    let client = batch_stt::http_client();
+    // What shapes the text: a checkpoint from another model is not reused.
+    let key = format!(
+        "{}|{:?}|{:?}|{:?}",
+        settings.model, settings.chunking, options.language, options.prompt
+    );
+    let (mut checkpoint, resume_me, resume_them) = Checkpoint::open(folder, &key);
+    if !resume_me.is_empty() || !resume_them.is_empty() {
+        log::info!(
+            "[transcribe] {}: resuming with {} chunks already done",
+            job.meeting_id,
+            resume_me.len() + resume_them.len()
+        );
+    }
+    let me = batch_stt::transcribe_track(
+        &client,
+        settings,
+        &options,
+        &mic.0,
+        mic.1,
+        &resume_me,
+        |start, end, segments| checkpoint.record("me", start, end, segments),
+        report("me"),
+    )
+    .await?;
+    let them = batch_stt::transcribe_track(
+        &client,
+        settings,
+        &options,
+        &system.0,
+        system.1,
+        &resume_them,
+        |start, end, segments| checkpoint.record("them", start, end, segments),
+        report("them"),
+    )
+    .await?;
+    Ok((me, them))
 }
 
 /// Run one transcription job. On failure the meeting is marked `failed` with
@@ -172,7 +350,8 @@ async fn run_inner(
     .map_err(|e| e.to_string())??;
 
     let started = std::time::Instant::now();
-    let (me, them) = transcribe_tracks(job, &mic, &system, progress).await?;
+    let _awake = KeepAwake::start();
+    let (me, them) = transcribe_tracks(job, &folder, &mic, &system, progress).await?;
     let segments = merge::merge(merge::label_me(me), merge::label_them(them));
     log::info!(
         "[transcribe] {}: {} segments in {}s with {}",
@@ -184,6 +363,8 @@ async fn run_inner(
     let mut conn = store::open_rw(&db)?;
     store::save_transcript(&mut conn, job.meeting_id, &segments)?;
     library::write_transcript(job.data_dir, &conn, job.meeting_id)?;
+    // Only now is every utterance safely stored.
+    let _ = std::fs::remove_file(folder.join(CHECKPOINT_FILE));
     Ok(())
 }
 
@@ -344,5 +525,83 @@ mod tests {
             "a live recording is never marked failed"
         );
         assert!(run(job("missing"), &|_| {}).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_retry_resumes_from_the_checkpoint_and_then_removes_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = meeting(dir.path(), "m1");
+        wav::write_wav(
+            &folder.join("mic.wav"),
+            &[silence(500), speech(1000), silence(4500)].concat(),
+            16_000,
+        )
+        .unwrap();
+        wav::write_wav(
+            &folder.join("system.wav"),
+            &[silence(3000), speech(1500), silence(1500)].concat(),
+            16_000,
+        )
+        .unwrap();
+        let job = |base: &str| Job {
+            data_dir: dir.path(),
+            meeting_id: "m1",
+            profile: profile(base),
+            languages: vec![],
+            vocabulary: vec![],
+        };
+
+        // First run: "Me" succeeds, then the server breaks on "Them".
+        let (base, _) = crate::test_http::mock_server(vec![
+            (200, r#"{"text":"Kept from run one."}"#),
+            (404, r#"{"error":"model 'm' not found"}"#),
+        ])
+        .await;
+        assert!(run(job(&base), &|_| {}).await.is_err());
+        assert!(folder.join(CHECKPOINT_FILE).exists());
+
+        // Retry: only "Them" is sent.
+        let (base, seen) =
+            crate::test_http::mock_server(vec![(200, r#"{"text":"From run two."}"#)]).await;
+        run(job(&base), &|_| {}).await.unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        assert!(!folder.join(CHECKPOINT_FILE).exists());
+        let md = std::fs::read_to_string(folder.join(store::TRANSCRIPT_FILE)).unwrap();
+        assert!(md.contains("Kept from run one.") && md.contains("From run two."), "{md}");
+    }
+
+    /// Full pipeline on a real meeting with local Whisper. Run with:
+    /// `PARLEY_MEETING_DIR=/path/to/meeting PARLEY_WHISPER_MODEL=/path/ggml.bin PARLEY_OUT=/tmp/out.md cargo test --manifest-path src-tauri/Cargo.toml -- --ignored whisper_real --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn whisper_real_meeting() {
+        let src = std::path::PathBuf::from(std::env::var("PARLEY_MEETING_DIR").unwrap());
+        let dir = tempfile::tempdir().unwrap();
+        let folder = meeting(dir.path(), "real");
+        for f in ["mic.wav", "system.wav"] {
+            std::fs::copy(src.join(f), folder.join(f)).unwrap();
+        }
+        let started = std::time::Instant::now();
+        run(
+            Job {
+                data_dir: dir.path(),
+                meeting_id: "real",
+                profile: Profile {
+                    id: "w".into(),
+                    name: "Local Whisper".into(),
+                    settings: ProfileSettings::WhisperLocal {
+                        model_path: std::env::var("PARLEY_WHISPER_MODEL").unwrap(),
+                    },
+                },
+                languages: vec!["en".into(), "es".into()],
+                vocabulary: vec![],
+            },
+            &|p| println!("{} {}/{}", p.track, p.done, p.total),
+        )
+        .await
+        .unwrap();
+        println!("total: {}s", started.elapsed().as_secs());
+        let md = std::fs::read_to_string(folder.join(store::TRANSCRIPT_FILE)).unwrap();
+        std::fs::write(std::env::var("PARLEY_OUT").unwrap(), md).unwrap();
     }
 }
